@@ -23,6 +23,7 @@ from pydicom.sequence import Sequence as DataElementSequence
 from pydicom.sr.coding import Code
 from pydicom.valuerep import DA, DS, TM, DT, PersonName
 
+from highdicom.spatial import are_points_coplanar
 from highdicom.sr.coding import CodedConcept
 from highdicom.sr.enum import (
     GraphicTypeValues,
@@ -59,7 +60,7 @@ def _assert_value_type(
 
     """
     if not hasattr(dataset, 'ValueType'):
-        raise AttributeError('Dataset is not an SR Content Item:\n{dataset}.')
+        raise AttributeError(f'Dataset is not an SR Content Item:\n{dataset}.')
     if not dataset.ValueType == value_type.value:
         raise ValueError(
             'Dataset is not an SR Content Item with value type '
@@ -132,7 +133,7 @@ class ContentItem(Dataset):
             type of relationship with parent content item
 
         """  # noqa: E501
-        super(ContentItem, self).__init__()
+        super().__init__()
         value_type = ValueTypeValues(value_type)
         self.ValueType = value_type.value
         if not isinstance(name, (CodedConcept, Code, )):
@@ -152,9 +153,9 @@ class ContentItem(Dataset):
         value: Union[DataElement, DataElementSequence]
     ) -> None:
         if name == 'ContentSequence':
-            super(ContentItem, self).__setattr__(name, ContentSequence(value))
+            super().__setattr__(name, ContentSequence(value))
         else:
-            super(ContentItem, self).__setattr__(name, value)
+            super().__setattr__(name, value)
 
     @classmethod
     def _from_dataset_derived(cls, dataset: Dataset) -> 'ContentItem':
@@ -371,9 +372,8 @@ class ContentSequence(DataElementSequence):
         for i in items:
             if not isinstance(i, ContentItem):
                 raise TypeError(
-                    'Items of "{}" must have type ContentItem.'.format(
-                        self.__class__.__name__
-                    )
+                    f'Items of "{self.__class__.__name__}" must '
+                    'have type ContentItem.'
                 )
         super().__setitem__(idx, val)  # type: ignore
 
@@ -416,19 +416,18 @@ class ContentSequence(DataElementSequence):
         """
         if not isinstance(val, ContentItem):
             raise TypeError(
-                'Items of "{}" must have type ContentItem.'.format(
-                    self.__class__.__name__
-                )
+                f'Items of "{self.__class__.__name__}" '
+                'must have type ContentItem.'
             )
         error_message = f'Item "{val.name}" is not in Sequence.'
         try:
             matches = self._lut[val.name]
-        except KeyError:
-            raise ValueError(error_message)
+        except KeyError as e:
+            raise ValueError(error_message) from e
         try:
             index = matches.index(val)
-        except ValueError:
-            raise ValueError(error_message)
+        except ValueError as e:
+            raise ValueError(error_message) from e
         return index
 
     def find(self, name: Union[Code, CodedConcept]) -> 'ContentSequence':
@@ -479,9 +478,8 @@ class ContentSequence(DataElementSequence):
         """
         if not isinstance(val, ContentItem):
             raise TypeError(
-                'Items of "{}" must have type ContentItem.'.format(
-                    self.__class__.__name__
-                )
+                f'Items of "{self.__class__.__name__}" '
+                'must have type ContentItem.'
             )
         if self._is_root:
             if self._is_sr and val.relationship_type is not None:
@@ -532,9 +530,8 @@ class ContentSequence(DataElementSequence):
         """
         if not isinstance(val, ContentItem):
             raise TypeError(
-                'Items of "{}" must have type ContentItem.'.format(
-                    self.__class__.__name__
-                )
+                f'Items of "{self.__class__.__name__}" '
+                'must have type ContentItem.'
             )
         if self._is_root:
             if val.relationship_type is not None:
@@ -617,17 +614,17 @@ class ContentSequence(DataElementSequence):
             )
         try:
             ValueTypeValues(dataset.ValueType)
-        except TypeError:
+        except TypeError as e:
             raise ValueError(
                 f'Item #{index} of sequence is not an SR Content Item '
                 f'because it has unknown Value Type "{dataset.ValueType}":'
                 f'\n{dataset}'
-            )
-        except AttributeError:
+            ) from e
+        except AttributeError as e:
             raise AttributeError(
                 f'Item #{index} of sequence is not an SR Content Item:\n'
                 f'{dataset}'
-            )
+            ) from e
         if not hasattr(dataset, 'RelationshipType') and not is_root and is_sr:
             raise AttributeError(
                 f'Item #{index} of sequence is not a value SR Content Item '
@@ -670,7 +667,7 @@ class CodeContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(CodeContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.CODE, name, relationship_type
         )
         if not isinstance(value, (CodedConcept, Code, )):
@@ -714,7 +711,7 @@ class CodeContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.CODE)
-        item = super(CodeContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         item.ConceptCodeSequence = DataElementSequence([
             CodedConcept.from_dataset(item.ConceptCodeSequence[0], copy=False)
         ])
@@ -742,7 +739,7 @@ class PnameContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(PnameContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.PNAME, name, relationship_type
         )
         check_person_name(value)
@@ -781,7 +778,7 @@ class PnameContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.PNAME)
-        item = super(PnameContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(PnameContentItem, item)
 
 
@@ -806,7 +803,7 @@ class TextContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(TextContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.TEXT, name, relationship_type
         )
         self.TextValue = str(value)
@@ -844,7 +841,7 @@ class TextContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TEXT)
-        item = super(TextContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(TextContentItem, item)
 
 
@@ -869,7 +866,7 @@ class TimeContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(TimeContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.TIME, name, relationship_type
         )
         self.Time = TM(value)
@@ -916,7 +913,7 @@ class TimeContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TIME)
-        item = super(TimeContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(TimeContentItem, item)
 
 
@@ -941,7 +938,7 @@ class DateContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(DateContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.DATE, name, relationship_type
         )
         self.Date = DA(value)
@@ -988,7 +985,7 @@ class DateContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATE)
-        item = super(DateContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(DateContentItem, item)
 
 
@@ -1013,7 +1010,7 @@ class DateTimeContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(DateTimeContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.DATETIME, name, relationship_type
         )
         self.DateTime = DT(value)
@@ -1060,7 +1057,7 @@ class DateTimeContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.DATETIME)
-        item = super(DateTimeContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(DateTimeContentItem, item)
 
 
@@ -1085,7 +1082,7 @@ class UIDRefContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(UIDRefContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.UIDREF, name, relationship_type
         )
         self.UID = value
@@ -1123,7 +1120,7 @@ class UIDRefContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.UIDREF)
-        item = super(UIDRefContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(UIDRefContentItem, item)
 
 
@@ -1134,7 +1131,7 @@ class NumContentItem(ContentItem):
     def __init__(
         self,
         name: Union[Code, CodedConcept],
-        value: Union[int, float],
+        value: float,
         unit: Union[Code, CodedConcept],
         qualifier: Optional[Union[Code, CodedConcept]] = None,
         relationship_type: Union[str, RelationshipTypeValues, None] = None,
@@ -1158,7 +1155,7 @@ class NumContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(NumContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.NUM, name, relationship_type
         )
         self.MeasuredValueSequence: List[Dataset] = []
@@ -1242,7 +1239,7 @@ class NumContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.NUM)
-        item = super(NumContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         unit_item = (
             item
             .MeasuredValueSequence[0]
@@ -1284,7 +1281,7 @@ class ContainerContentItem(ContentItem):
             type of relationship with parent content item.
 
         """  # noqa: E501
-        super(ContainerContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.CONTAINER, name, relationship_type
         )
         if is_content_continuous:
@@ -1334,7 +1331,7 @@ class ContainerContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.CONTAINER)
-        item = super(ContainerContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(ContainerContentItem, item)
 
 
@@ -1362,7 +1359,7 @@ class CompositeContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(CompositeContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.COMPOSITE, name, relationship_type
         )
         item = Dataset()
@@ -1419,7 +1416,7 @@ class CompositeContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.COMPOSITE)
-        item = super(CompositeContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(CompositeContentItem, item)
 
 
@@ -1459,7 +1456,7 @@ class ImageContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(ImageContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.IMAGE, name, relationship_type
         )
         item = Dataset()
@@ -1500,10 +1497,7 @@ class ImageContentItem(ContentItem):
             'ReferencedFrameNumber',
         ):
             return None
-        val = getattr(
-            self.ReferencedSOPSequence[0],
-            'ReferencedFrameNumber',
-        )
+        val = self.ReferencedSOPSequence[0].ReferencedFrameNumber
         if isinstance(val, MultiValue):
             return [int(v) for v in val]
         else:
@@ -1519,10 +1513,7 @@ class ImageContentItem(ContentItem):
             'ReferencedSegmentNumber',
         ):
             return None
-        val = getattr(
-            self.ReferencedSOPSequence[0],
-            'ReferencedSegmentNumber',
-        )
+        val = self.ReferencedSOPSequence[0].ReferencedSegmentNumber
         if isinstance(val, MultiValue):
             return [int(v) for v in val]
         else:
@@ -1556,7 +1547,7 @@ class ImageContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
-        item = super(ImageContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(ImageContentItem, item)
 
 
@@ -1604,7 +1595,7 @@ class ScoordContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(ScoordContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.SCOORD, name, relationship_type
         )
         graphic_type = GraphicTypeValues(graphic_type)
@@ -1686,7 +1677,7 @@ class ScoordContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD)
-        item = super(ScoordContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(ScoordContentItem, item)
 
 
@@ -1729,7 +1720,7 @@ class Scoord3DContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(Scoord3DContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.SCOORD3D, name, relationship_type
         )
         graphic_type = GraphicTypeValues3D(graphic_type)
@@ -1763,6 +1754,25 @@ class Scoord3DContentItem(ContentItem):
                     '(x, y, z) triplets in three-dimensional patient or '
                     'slide coordinate space.'
                 )
+            if graphic_type == GraphicTypeValues3D.POLYGON:
+                if not np.array_equal(graphic_data[0], graphic_data[-1]):
+                    raise ValueError(
+                        'Graphic data of a 3D scoord of graphic type "POLYGON" '
+                        'must be closed, i.e. the first and last points must '
+                        'be equal.'
+                    )
+
+        # Check for coplanarity, if required by the graphic type
+        if graphic_type in (
+            GraphicTypeValues3D.POLYGON,
+            GraphicTypeValues3D.ELLIPSE,
+        ):
+            if not are_points_coplanar(graphic_data):
+                raise ValueError(
+                    'Graphic data of a 3D scoord of type '
+                    f'"{graphic_type.value}" must contain co-planar points.'
+                )
+
         # Flatten list of coordinate triplets
         self.GraphicData = graphic_data.flatten().tolist()
         self.ReferencedFrameOfReferenceUID = frame_of_reference_uid
@@ -1812,7 +1822,7 @@ class Scoord3DContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.SCOORD3D)
-        item = super(Scoord3DContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(Scoord3DContentItem, item)
 
 
@@ -1847,7 +1857,7 @@ class TcoordContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(TcoordContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.TCOORD, name, relationship_type
         )
         temporal_range_type = TemporalRangeTypeValues(temporal_range_type)
@@ -1866,13 +1876,10 @@ class TcoordContentItem(ContentItem):
             ]
         else:
             raise ValueError(
-                'One of the following arguments is required: "{}"'.format(
-                    '", "'.join([
-                        'referenced_sample_positions',
-                        'referenced_time_offsets',
-                        'referenced_date_time'
-                    ])
-                )
+                'One of the following arguments is required: '
+                '"referenced_sample_positions", '
+                '"referenced_time_offsets", '
+                '"referenced_date_time"'
             )
 
     @property
@@ -1920,7 +1927,7 @@ class TcoordContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.TCOORD)
-        item = super(TcoordContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(TcoordContentItem, item)
 
 
@@ -1956,7 +1963,7 @@ class WaveformContentItem(ContentItem):
             Type of relationship with parent content item
 
         """  # noqa: E501
-        super(WaveformContentItem, self).__init__(
+        super().__init__(
             ValueTypeValues.WAVEFORM, name, relationship_type
         )
         item = Dataset()
@@ -2002,10 +2009,7 @@ class WaveformContentItem(ContentItem):
             'ReferencedFrameNumber',
         ):
             return None
-        val = getattr(
-            self.ReferencedSOPSequence[0],
-            'ReferencedFrameNumber',
-        )
+        val = self.ReferencedSOPSequence[0].ReferencedFrameNumber
         return [
             (
                 int(val[i]),
@@ -2042,5 +2046,5 @@ class WaveformContentItem(ContentItem):
         else:
             dataset_copy = dataset
         _assert_value_type(dataset_copy, ValueTypeValues.IMAGE)
-        item = super(WaveformContentItem, cls)._from_dataset_base(dataset_copy)
+        item = super()._from_dataset_base(dataset_copy)
         return cast(WaveformContentItem, item)
